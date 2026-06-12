@@ -1,0 +1,10 @@
+__pycache__/
+.venv/
+*.pyc
+*.pyo
+.env
+# 调试临时文件
+_*.txt
+_*.py
+settings.json
+pipeline.json.bak

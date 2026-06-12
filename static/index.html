@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解说漫工作台</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f8fa;--bg2:#fff;--bg3:#f1f3f5;
+  --text:#1a1d23;--text2:#5f6672;--text3:#9ca3af;
+  --accent:#4f6ef7;--accent2:#3b5bdb;--accent-light:#eef2ff;
+  --ok:#16a34a;--ok-bg:#f0fdf4;--ok-border:#bbf7d0;
+  --warn:#d97706;--warn-bg:#fffbeb;--warn-border:#fde68a;
+  --err:#dc2626;--err-bg:#fef2f2;--err-border:#fecaca;
+  --border:#e5e7eb;--border2:#d1d5db;
+  --r:8px;--r2:6px;
+  --mono:'SF Mono','Cascadia Code','Consolas',monospace;
+  --shadow:0 1px 3px rgba(0,0,0,.06);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px;line-height:1.5}
+button{cursor:pointer;font-family:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit}
+
+/* ── Header ── */
+#hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+#hdr h1{font-size:15px;font-weight:600;color:var(--accent);white-space:nowrap}
+#hdr .project-name{font-size:13px;color:var(--text2);padding:3px 10px;border-radius:var(--r2);background:var(--bg3);cursor:pointer;white-space:nowrap}
+#hdr .project-name:hover{color:var(--accent)}
+#hdr .llm-status{font-size:11px;padding:2px 8px;border-radius:10px;display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer}
+#hdr .llm-status.ok{background:var(--ok-bg);color:var(--ok);border:1px solid var(--ok-border)}
+#hdr .llm-status.err{background:var(--err-bg);color:var(--err);border:1px solid var(--err-border)}
+#hdr .llm-status.unk{background:var(--bg3);color:var(--text3)}
+#hdr .spacer{flex:1}
+#hdr button{background:none;border:1px solid var(--border);color:var(--text2);padding:4px 12px;border-radius:var(--r2);font-size:12px}
+#hdr button:hover{background:var(--bg3);color:var(--accent);border-color:var(--accent)}
+
+/* ── Three-column layout ── */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* Left column: story input */
+#col-left{width:320px;min-width:280px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.col-header{padding:10px 14px;font-size:12px;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.col-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+
+/* Middle column: segments */
+#col-mid{flex:1;min-width:260px;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.mid-tab{padding:4px 10px;cursor:pointer;border-radius:var(--r2);font-size:12px;font-weight:600;transition:all .12s}
+.mid-tab:hover{background:var(--accent-light);color:var(--accent)}
+.mid-tab.active{background:var(--accent);color:#fff}
+
+/* Asset library cards */
+.asset-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px}
+.asset-card h3{font-size:13px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.asset-card h3 .count{font-size:11px;font-weight:400;color:var(--text3)}
+.asset-item{font-size:12px;padding:6px 8px;border-radius:var(--r2);margin-bottom:4px;line-height:1.4}
+.asset-item.char{background:var(--warn-bg);border:1px solid #fde68a;color:#92400e}
+.asset-item.scene{background:#dbeafe;border:1px solid #93c5fd;color:#1e40af}
+.asset-item.prop{background:#fce7f3;border:1px solid #f9a8d4;color:#9d174d}
+.asset-item b{margin-right:4px}
+
+/* Right column: board detail */
+#col-right{width:400px;min-width:320px;background:var(--bg2);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+
+/* ── Form elements ── */
+label{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.3px}
+textarea{resize:vertical;min-height:140px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r2);font-size:13px;outline:none;background:var(--bg2);line-height:1.6}
+textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-light)}
+select{padding:6px 8px;border:1px solid var(--border);border-radius:var(--r2);font-size:13px;background:var(--bg2);outline:none}
+select:focus{border-color:var(--accent)}
+
+.btn{padding:6px 14px;border-radius:var(--r2);font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--bg2);color:var(--text2);transition:all .12s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:var(--accent2)}
+.btn-primary:disabled{background:var(--bg3);color:var(--text3);border-color:var(--border);cursor:not-allowed}
+.btn-sm{padding:3px 10px;font-size:11px}
+
+/* ── Error card ── */
+.error-card{background:var(--err-bg);border:1px solid var(--err-border);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.error-card .ec-title{font-size:13px;font-weight:600;color:var(--err)}
+.error-card .ec-reason{font-size:12px;color:#7f1d1d}
+.error-card .ec-reason li{margin-left:16px}
+.error-card .ec-raw{font-size:11px;color:var(--text3);font-family:var(--mono);word-break:break-all}
+.error-card .ec-toggle{font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline}
+.error-card .ec-json-ctx{font-family:var(--mono);font-size:11px;background:#1e1e2e;color:#cdd6f4;padding:8px 10px;border-radius:var(--r2);white-space:pre;overflow-x:auto;line-height:1.5;margin-top:4px}
+.error-card .ec-json-ctx .err-line{color:#f38ba8;font-weight:600}
+.error-card .ec-issues{font-size:12px;color:#7f1d1d}
+.error-card .ec-issues li{margin-left:16px}
+.error-card .ec-debug-path{font-size:11px;color:var(--text3);font-family:var(--mono)}
+.warn-card{background:var(--warn-bg);border:1px solid var(--warn-border);border-radius:var(--r);padding:10px 12px;font-size:12px;color:#92400e}
+
+/* ── Segment cards ── */
+.seg-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;cursor:pointer;transition:all .12s}
+.seg-card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.seg-card.active{border-color:var(--accent);background:var(--accent-light)}
+.seg-card .sc-id{font-size:13px;font-weight:600}
+.seg-card .sc-meta{font-size:11px;color:var(--text2);margin-top:2px}
+.seg-card .sc-boards{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.seg-card .sc-board-chip{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--bg3);color:var(--text3)}
+.seg-card .sc-board-chip.done{background:var(--ok-bg);color:var(--ok)}
+.seg-card .sc-board-chip.running{background:var(--warn-bg);color:var(--warn)}
+.seg-card .sc-board-chip.fail{background:var(--err-bg);color:var(--err)}
+
+/* ── Board detail ── */
+.bd-section{margin-bottom:14px}
+.bd-section h4{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.bd-section h4 .badge{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500}
+.badge-ok{background:var(--ok-bg);color:var(--ok)}
+.badge-warn{background:var(--warn-bg);color:var(--warn)}
+.badge-err{background:var(--err-bg);color:var(--err)}
+.badge-muted{background:var(--bg3);color:var(--text3)}
+
+/* Timeline tables */
+.tl-table{width:100%;border-collapse:collapse;font-size:11px}
+.tl-table th{text-align:left;padding:5px 6px;background:var(--bg3);color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+.tl-table td{padding:5px 6px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.4}
+.tl-table .time{font-family:var(--mono);color:var(--accent);white-space:nowrap;font-size:11px}
+.tl-table .narrator{color:var(--accent);font-weight:500}
+.tl-table .dialogue{color:#7c3aed;font-weight:500}
+
+/* Shot grid */
+.shot-grid{font-size:11px;border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.shot-row{display:grid;grid-template-columns:44px 52px 1fr 1fr;border-bottom:1px solid var(--border)}
+.shot-row:last-child{border-bottom:none}
+.shot-row .sh-hdr{background:var(--bg3);font-weight:500;color:var(--text2);padding:5px 6px;font-size:10px}
+.shot-row .sh-cell{padding:5px 6px}
+.shot-row .sh-time{font-family:var(--mono);color:var(--accent);white-space:nowrap}
+.shot-row .sh-sub{font-size:10px;color:var(--text3)}
+
+/* Prompt preview */
+.prompt-box{background:#1e1e2e;color:#cdd6f4;padding:10px;border-radius:var(--r2);font-family:var(--mono);font-size:11px;white-space:pre-wrap;max-height:260px;overflow-y:auto;line-height:1.5}
+details summary{font-size:12px;color:var(--text2);cursor:pointer;padding:4px 0;user-select:none}
+details summary:hover{color:var(--accent)}
+
+/* Asset chips */
+.asset-list{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.asset-chip{font-size:10px;padding:1px 7px;border-radius:3px}
+.asset-chip.char{background:#fef3c7;color:#92400e}
+.asset-chip.scene{background:#dbeafe;color:#1e40af}
+.asset-chip.prop{background:#fce7f3;color:#9d174d}
+
+/* Action row */
+.action-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:13px;gap:8px;padding:40px}
+
+/* Settings modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal{background:var(--bg2);border-radius:var(--r);padding:20px;width:480px;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.15)}
+.modal h2{font-size:16px;margin-bottom:14px}
+.modal label{display:block;font-size:11px;font-weight:500;color:var(--text3);margin-bottom:3px;margin-top:10px}
+.modal input,.modal select{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2);font-size:13px;outline:none}
+.modal input:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-light)}
+.modal .modal-acts{margin-top:18px;display:flex;gap:8px;justify-content:flex-end}
+
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <h1>解说漫工作台</h1>
+  <span class="project-name" id="project-label" onclick="openProject()">未打开项目</span>
+  <span class="llm-status unk" id="llm-badge" onclick="testLLM()">LLM: 检测中</span>
+  <div class="spacer"></div>
+  <button onclick="openProject()">打开项目</button>
+  <button onclick="showSettings()">设置</button>
+</div>
+
+<div id="main">
+  <!-- Left: Story input -->
+  <div id="col-left">
+    <div class="col-header">故事输入</div>
+    <div class="col-body" id="left-body">
+      <label>故事/大纲文本</label>
+      <textarea id="inp-text" placeholder="输入故事、大纲、或一个想法..."></textarea>
+      <label>旁白风格</label>
+      <select id="inp-style">
+        <option value="third_person">第三人称旁白</option>
+        <option value="first_person">第一人称旁白</option>
+      </select>
+      <button class="btn btn-primary" id="btn-decompose" onclick="runDecompose()" disabled>开始拆解</button>
+      <div id="llm-config-info" style="font-size:11px;color:var(--text3)"></div>
+      <div id="error-area"></div>
+    </div>
+  </div>
+
+  <!-- Middle: Segments / Assets -->
+  <div id="col-mid">
+    <div class="col-header" style="gap:2px">
+      <span id="tab-segments" class="mid-tab active" onclick="switchMidTab('segments')">段落 <span id="seg-count" style="font-weight:400"></span></span>
+      <span id="tab-assets" class="mid-tab" onclick="switchMidTab('assets')">资产库 <span id="asset-count" style="font-weight:400"></span></span>
+    </div>
+    <div class="col-body" id="mid-body">
+      <div class="empty-state" id="mid-empty">创建项目并拆解后，段落将显示在这里</div>
+    </div>
+  </div>
+
+  <!-- Right: Board detail -->
+  <div id="col-right">
+    <div class="col-header" id="right-header">Board 详情</div>
+    <div class="col-body" id="right-body">
+      <div class="empty-state">选择左侧段落中的 Board 查看详情</div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-root" style="display:none"></div>
+
+<script>
+const API = '';
+let currentProject = null;
+let pipelineData = null;
+let currentSegKey = null;
+let currentBoardIdx = null;
+let llmHealth = null;
+
+async function api(path, opts = {}) {
+  let r;
+  try {
+    r = await fetch(API + path, {
+      headers: opts.body ? { 'Content-Type': 'application/json' } : undefined,
+      ...opts,
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    });
+  } catch (e) {
+    throw { detail: '网络请求失败: 服务器可能未启动或不可达 (http://localhost:8003)' };
+  }
+  if (!r.ok) {
+    let detail;
+    try { detail = await r.json(); } catch { detail = { detail: r.statusText }; }
+    throw detail;
+  }
+  return r.json();
+}
+
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+/* ── Init ── */
+async function init() {
+  await checkLLMConfig();
+  updateDecomposeButton();
+}
+
+async function checkLLMConfig() {
+  try {
+    const cfg = await api('/api/llm/config');
+    const badge = document.getElementById('llm-badge');
+    const info = document.getElementById('llm-config-info');
+    badge.className = 'llm-status ' + (cfg.has_api_key ? 'unk' : 'err');
+    badge.textContent = `LLM: ${cfg.provider} / ${cfg.model}`;
+    info.innerHTML = `Provider: <b>${esc(cfg.provider)}</b> | Model: <b>${esc(cfg.model)}</b><br>Base: ${esc(cfg.base_url)} | Key: ${cfg.has_api_key ? '***' + esc(cfg.api_key_tail) : '<span style=color:var(--err)>未配置</span>'}`;
+    if (cfg.has_api_key) {
+      badge.textContent = `LLM: ${cfg.provider} · 点击测试`;
+    }
+  } catch (e) {
+    document.getElementById('llm-badge').className = 'llm-status err';
+    document.getElementById('llm-badge').textContent = 'LLM: 配置读取失败';
+  }
+}
+
+async function testLLM() {
+  const badge = document.getElementById('llm-badge');
+  badge.className = 'llm-status unk';
+  badge.innerHTML = '<span class="spinner"></span> 测试中...';
+  try {
+    const r = await api('/api/llm/health', { method: 'POST' });
+    llmHealth = r;
+    if (r.success) {
+      badge.className = 'llm-status ok';
+      badge.textContent = `LLM: ${r.provider} OK`;
+      clearError();
+    } else {
+      badge.className = 'llm-status err';
+      badge.textContent = `LLM: ${r.error_type}`;
+      showError(r.error_type, r.error_message, null, r);
+    }
+  } catch (e) {
+    badge.className = 'llm-status err';
+    badge.textContent = 'LLM: 测试失败';
+  }
+}
+
+/* ── Error display ── */
+function showError(errorType, message, rawError, config) {
+  const area = document.getElementById('error-area');
+  const reasons = {
+    auth_failed: ['API Key 无效或已过期', 'settings.json 中 API Key 被脱敏覆盖（含星号）', 'Provider 配置错误：key 和 provider 不匹配', 'Base URL 指向了错误的服务端'],
+    no_api_key: ['settings.json 中未填写对应 provider 的 API Key', '环境变量未设置'],
+    permission_denied: ['该账号无权访问模型 ' + (config?.model || ''), '需联系管理员开通权限'],
+    not_found: ['模型名称拼写错误', 'Base URL 不正确，该端点不存在'],
+    connection_error: ['Base URL 不可达', '网络代理或防火墙阻断了请求'],
+  };
+
+  if (errorType === 'json_parse_error') {
+    const detail = rawError || {};
+    const lineno = detail.lineno || '?';
+    const colno = detail.colno || '?';
+    const pos = detail.pos;
+    const ctx = detail.context || '';
+    const issues = detail.detected_issues || [];
+    const debugFile = detail.debug_file || '';
+    const totalChars = detail.total_chars;
+
+    // Highlight the error line in context
+    const ctxHtml = ctx
+      ? ctx.split('\n').map(line => {
+          if (line.startsWith('>>>')) {
+            return '<span class="err-line">' + esc(line) + '</span>';
+          }
+          return esc(line);
+        }).join('\n')
+      : '';
+
+    area.innerHTML = `
+      <div class="error-card">
+        <div class="ec-title">LLM 返回不是合法 JSON</div>
+        <div class="ec-reason">错误位置：line ${esc(String(lineno))} column ${esc(String(colno))}${pos !== undefined ? ' (char ' + esc(String(pos)) + ')' : ''}</div>
+        ${detail.msg ? `<div style="font-size:12px;color:#7f1d1d">错误信息：${esc(detail.msg)}</div>` : ''}
+        ${totalChars ? `<div style="font-size:11px;color:var(--text3)">JSON 片段长度: ${esc(String(totalChars))} 字符</div>` : ''}
+        ${issues.length ? `<div class="ec-issues">检测到的问题：<ul>${issues.map(i => '<li>' + esc(i) + '</li>').join('')}</ul></div>` : ''}
+        ${ctxHtml ? `<details open style="margin-top:6px"><summary>错误附近原文</summary><div class="ec-json-ctx">${ctxHtml}</div></details>` : ''}
+        ${debugFile ? `<div class="ec-debug-path" style="margin-top:6px">Debug: ${esc(debugFile)}</div>` : ''}
+        ${config ? `<div style="font-size:11px;color:var(--text2);margin-top:4px">当前配置: provider=${esc(config.provider)} model=${esc(config.model)}</div>` : ''}
+      </div>
+    `;
+    return;
+  }
+
+  const reasonsList = reasons[errorType] || ['未知错误类型'];
+  area.innerHTML = `
+    <div class="error-card">
+      <div class="ec-title">${esc(errorType === 'auth_failed' ? 'LLM 认证失败' : errorType === 'no_api_key' ? 'API Key 未配置' : message || errorType)}</div>
+      <div class="ec-reason">可能原因：<ul>${reasonsList.map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>
+      ${config ? `<div style="font-size:11px;color:var(--text2)">当前配置: provider=${esc(config.provider)} model=${esc(config.model)} base_url=${esc(config.base_url)}</div>` : ''}
+      ${rawError ? `<span class="ec-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">显示原始错误</span><div class="ec-raw" style="display:none">${esc(typeof rawError === 'string' ? rawError : JSON.stringify(rawError))}</div>` : ''}
+    </div>
+  `;
+}
+
+function clearError() { document.getElementById('error-area').innerHTML = ''; }
+
+/* ── Project ── */
+async function openProject() {
+  const name = prompt('项目名称:', currentProject || '');
+  if (!name) return;
+  try {
+    pipelineData = await api(`/api/project/status?project_name=${encodeURIComponent(name)}`);
+    currentProject = name;
+    currentSegKey = null;
+    currentBoardIdx = null;
+    document.getElementById('project-label').textContent = name;
+    document.getElementById('inp-text').value = pipelineData.source_text || '';
+    document.getElementById('inp-style').value = pipelineData.narration_style || 'third_person';
+    updateDecomposeButton();
+    renderSegments();
+    clearBoardDetail();
+  } catch (e) {
+    const d = e.detail || e;
+    alert(typeof d === 'string' ? d : JSON.stringify(d));
+  }
+}
+
+async function createProject() {
+  const name = prompt('新项目名称:');
+  if (!name) return;
+  const text = document.getElementById('inp-text').value.trim();
+  const style = document.getElementById('inp-style').value;
+  if (!text) { alert('请先输入故事文本'); return; }
+  try {
+    await api('/api/project/create', { method: 'POST', body: { project_name: name, source_text: text, narration_style: style } });
+    currentProject = name;
+    pipelineData = { project: name, narration_style: style, source_text: text, assets: { characters: {}, scenes: {}, props: {} }, narration_segments: {} };
+    document.getElementById('project-label').textContent = name;
+    updateDecomposeButton();
+    renderSegments();
+  } catch (e) {
+    const d = e.detail || e;
+    alert('创建失败: ' + (typeof d === 'string' ? d : JSON.stringify(d)));
+  }
+}
+
+function updateDecomposeButton() {
+  const btn = document.getElementById('btn-decompose');
+  const hasText = !!document.getElementById('inp-text').value.trim();
+  const hasProject = !!currentProject;
+  if (!hasProject) {
+    btn.textContent = '创建项目并拆解';
+    btn.disabled = !hasText;
+    btn.onclick = createProject;
+  } else {
+    const hasSegments = Object.keys(pipelineData?.narration_segments || {}).length > 0;
+    btn.textContent = hasSegments ? '重新拆解' : '开始拆解';
+    btn.disabled = !hasText;
+    btn.onclick = runDecompose;
+  }
+}
+
+document.getElementById('inp-text').addEventListener('input', updateDecomposeButton);
+
+/* ── Decompose ── */
+async function runDecompose() {
+  if (!currentProject) return;
+  clearError();
+  const btn = document.getElementById('btn-decompose');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 拆解中 (3步LLM调用)...';
+  try {
+    const r = await api('/api/project/decompose', { method: 'POST', body: { project_name: currentProject } });
+    pipelineData = await api(`/api/project/status?project_name=${encodeURIComponent(currentProject)}`);
+    document.getElementById('inp-text').value = pipelineData.source_text || '';
+    document.getElementById('inp-style').value = pipelineData.narration_style || 'third_person';
+    renderSegments();
+    if (r.validation_errors && r.validation_errors.length > 0) {
+      const area = document.getElementById('error-area');
+      area.innerHTML = `<div class="warn-card">拆解完成，但存在校验问题：<br>${r.validation_errors.map(e => esc(e)).join('<br>')}</div>`;
+    }
+    if (r.stats) {
+      const s = r.stats;
+      const area = document.getElementById('error-area');
+      area.innerHTML += `<div class="warn-card" style="background:var(--ok-bg);border-color:var(--ok-border);color:#166534">拆解完成：${s.segments} 段 · ${s.boards} 板 · ${s.characters} 角色 · ${s.scenes} 场景 · ${s.props} 道具</div>`;
+    }
+    const keys = Object.keys(pipelineData.narration_segments || {});
+    if (keys.length) selectSegment(keys[0]);
+  } catch (e) {
+    const detail = e.detail || e;
+    const d = typeof detail === 'string' ? { message: detail } : detail;
+    const rawErr = d.error_type === 'json_parse_error' ? d : d.raw_error;
+    showError(d.error_type || 'unknown', d.message || d.detail || JSON.stringify(d), rawErr, d.config);
+  }
+  btn.disabled = false;
+  btn.textContent = '重新拆解';
+  btn.onclick = runDecompose;
+}
+
+/* ── Segments ── */
+function renderSegments() {
+  const count = document.getElementById('seg-count');
+  const segs = pipelineData?.narration_segments || {};
+  const keys = Object.keys(segs);
+  count.textContent = keys.length ? `(${keys.length})` : '';
+  renderAssets();  // update asset count badge
+  renderMidBody(); // render whichever tab is active
+}
+
+/* ── Mid tab switching ── */
+let midTab = 'segments';
+
+function switchMidTab(tab) {
+  midTab = tab;
+  document.getElementById('tab-segments').className = 'mid-tab' + (tab === 'segments' ? ' active' : '');
+  document.getElementById('tab-assets').className = 'mid-tab' + (tab === 'assets' ? ' active' : '');
+  renderMidBody();
+}
+
+function renderMidBody() {
+  if (midTab === 'assets') {
+    renderAssetsMid();
+  } else {
+    renderSegmentsList();
+  }
+}
+
+/* ── Assets in mid column ── */
+function renderAssets() {
+  // Update asset count badge
+  const assets = pipelineData?.assets || {};
+  const total = Object.keys(assets.characters || {}).length + Object.keys(assets.scenes || {}).length + Object.keys(assets.props || {}).length;
+  document.getElementById('asset-count').textContent = total ? `(${total})` : '';
+  // Re-render if on assets tab
+  if (midTab === 'assets') renderAssetsMid();
+}
+
+function renderAssetsMid() {
+  const body = document.getElementById('mid-body');
+  const assets = pipelineData?.assets;
+  if (!assets) { body.innerHTML = '<div class="empty-state">拆解后资产将显示在这里</div>'; return; }
+
+  const chars = assets.characters || {};
+  const scenes = assets.scenes || {};
+  const props = assets.props || {};
+
+  if (!Object.keys(chars).length && !Object.keys(scenes).length && !Object.keys(props).length) {
+    body.innerHTML = '<div class="empty-state">拆解后资产将显示在这里</div>';
+    return;
+  }
+
+  let html = '';
+  if (Object.keys(chars).length) {
+    html += '<div class="asset-card" style="margin-bottom:10px"><h3>角色 <span class="count">' + Object.keys(chars).length + '</span></h3>';
+    for (const [name, info] of Object.entries(chars)) {
+      html += `<div class="asset-item char"><b>${esc(name)}</b>${esc(info.seed || '')}</div>`;
+    }
+    html += '</div>';
+  }
+  if (Object.keys(scenes).length) {
+    html += '<div class="asset-card" style="margin-bottom:10px"><h3>场景 <span class="count">' + Object.keys(scenes).length + '</span></h3>';
+    for (const [name, info] of Object.entries(scenes)) {
+      html += `<div class="asset-item scene"><b>${esc(name)}</b>${esc(info.seed || '')}</div>`;
+    }
+    html += '</div>';
+  }
+  if (Object.keys(props).length) {
+    html += '<div class="asset-card" style="margin-bottom:10px"><h3>道具 <span class="count">' + Object.keys(props).length + '</span></h3>';
+    for (const [name, info] of Object.entries(props)) {
+      html += `<div class="asset-item prop"><b>${esc(name)}</b>${esc(info.seed || '')}</div>`;
+    }
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+
+/* ── Segments list (extracted from renderSegments) ── */
+function renderSegmentsList() {
+  const body = document.getElementById('mid-body');
+  const segs = pipelineData?.narration_segments || {};
+  const keys = Object.keys(segs);
+  if (!keys.length) {
+    body.innerHTML = '<div class="empty-state">创建项目并拆解后，段落将显示在这里</div>';
+    return;
+  }
+  body.innerHTML = keys.map(key => {
+    const seg = segs[key];
+    const boards = seg.boards || [];
+    const boardChips = boards.map((b, i) => {
+      const vs = b.video?.status || 'needed';
+      const cls = vs === 'completed' ? 'done' : vs === 'submitted' ? 'running' : vs === 'failed' ? 'fail' : '';
+      return `<span class="sc-board-chip ${cls}">P${b.page}</span>`;
+    }).join('');
+    return `<div class="seg-card ${key === currentSegKey ? 'active' : ''}" onclick="selectSegment('${esc(key)}')">
+      <div class="sc-id">${esc(key)}</div>
+      <div class="sc-meta">${esc(seg.scene_location || '')} · ${boards.length}板 · ${(seg.characters_in_segment || []).join(', ')}</div>
+      <div class="sc-boards">${boardChips}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectSegment(key) {
+  currentSegKey = key;
+  currentBoardIdx = 0;
+  renderSegments();
+  renderBoardDetail();
+}
+
+/* ── Board detail ── */
+function clearBoardDetail() {
+  document.getElementById('right-header').textContent = 'Board 详情';
+  document.getElementById('right-body').innerHTML = '<div class="empty-state">选择左侧段落中的 Board 查看详情</div>';
+}
+
+function renderBoardDetail() {
+  const seg = (pipelineData?.narration_segments || {})[currentSegKey];
+  if (!seg) { clearBoardDetail(); return; }
+  const boards = seg.boards || [];
+  if (!boards.length) { clearBoardDetail(); return; }
+
+  const idx = currentBoardIdx || 0;
+  const b = boards[idx];
+  const header = document.getElementById('right-header');
+  header.innerHTML = `${esc(currentSegKey)} <span style="font-weight:400">· Board ${idx + 1}/${boards.length}</span>`;
+
+  const body = document.getElementById('right-body');
+  const sbStatus = b.storyboard_image?.status || 'needed';
+  const vidStatus = b.video?.status || 'needed';
+
+  body.innerHTML = `
+    ${boards.length > 1 ? `<div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">${boards.map((_, i) => `<button class="btn btn-sm ${i === idx ? 'btn-primary' : ''}" onclick="currentBoardIdx=${i};renderBoardDetail()">P${i + 1}</button>`).join('')}</div>` : ''}
+
+    <div class="bd-section">
+      <h4>视频目标 <span class="badge badge-muted">${b.board_duration}s</span> <span class="badge ${sbStatus === 'completed' ? 'badge-ok' : 'badge-muted'}">分镜:${statusLabel(sbStatus)}</span> <span class="badge ${vidStatus === 'completed' ? 'badge-ok' : vidStatus === 'submitted' ? 'badge-warn' : 'badge-muted'}">视频:${statusLabel(vidStatus)}</span></h4>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">${esc(b.video_goal || '')}</div>
+    </div>
+
+    ${renderVoiceTL(b.voice_timeline || [])}
+    ${renderShotTL(b.shot_timeline || [], b.voice_timeline || [])}
+
+    ${b.asset_refs ? `<div class="bd-section"><h4>资产引用</h4><div class="asset-list">${(b.asset_refs.characters || []).map(c => `<span class="asset-chip char">${esc(c)}</span>`).join('')}${b.asset_refs.scene ? `<span class="asset-chip scene">${esc(b.asset_refs.scene)}</span>` : ''}${(b.asset_refs.props || []).map(p => `<span class="asset-chip prop">${esc(p)}</span>`).join('')}</div></div>` : ''}
+
+    ${b.storyboard_image?.url ? `<div class="bd-section"><h4>分镜板图</h4><img src="${esc(b.storyboard_image.url)}" style="max-width:100%;border-radius:var(--r2);border:1px solid var(--border)"></div>` : ''}
+    ${b.video?.url ? `<div class="bd-section"><h4>视频</h4><video src="${esc(b.video.url)}" controls style="max-width:100%;border-radius:var(--r2)"></video></div>` : ''}
+
+    <div class="action-row">
+      <button class="btn btn-primary" onclick="submitStoryboard('${esc(currentSegKey)}',${idx})" ${sbStatus !== 'needed' ? 'disabled' : ''}>生成分镜板</button>
+      <button class="btn btn-primary" onclick="submitVideo('${esc(currentSegKey)}',${idx})" ${vidStatus !== 'needed' || sbStatus !== 'completed' ? 'disabled' : ''}>生成视频</button>
+      <button class="btn" onclick="refreshPipeline()">刷新状态</button>
+    </div>
+
+    ${b.storyboard_image?.prompt ? `<details style="margin-top:8px"><summary>分镜板提示词</summary><div class="prompt-box">${esc(b.storyboard_image.prompt)}</div></details>` : ''}
+    ${b.video?.prompt ? `<details style="margin-top:4px"><summary>视频提示词</summary><div class="prompt-box">${esc(b.video.prompt)}</div></details>` : ''}
+  `;
+}
+
+function renderVoiceTL(beats) {
+  if (!beats.length) return '';
+  return `<div class="bd-section"><h4>声音时间轴</h4><table class="tl-table">
+    <tr><th>ID</th><th>时间</th><th>类型</th><th>说话者</th><th>文本</th></tr>
+    ${beats.map(b => `<tr><td>${esc(b.beat_id)}</td><td class="time">${b.start}-${b.end}s</td>
+      <td>${b.type === 'narration' ? '旁白' : '对白'}</td>
+      <td class="${b.type === 'narration' ? 'narrator' : 'dialogue'}">${esc(b.speaker)}</td>
+      <td>${esc(b.text)}</td></tr>`).join('')}
+  </table></div>`;
+}
+
+function renderShotTL(shots, beats) {
+  if (!shots.length) return '';
+  const bm = {}; beats.forEach(b => bm[b.beat_id] = b);
+  return `<div class="bd-section"><h4>镜头时间轴</h4><div class="shot-grid">
+    <div class="shot-row"><div class="sh-hdr">镜头</div><div class="sh-hdr">时间</div><div class="sh-hdr">画面</div><div class="sh-hdr">声音设计</div></div>
+    ${shots.map(s => {
+      const refs = (s.voice_refs || []).map(r => bm[r]?.text || r).join('; ');
+      return `<div class="shot-row">
+        <div class="sh-cell" style="font-weight:500">${esc(s.shot_id)}</div>
+        <div class="sh-cell sh-time">${s.start}-${s.end}s</div>
+        <div class="sh-cell">${esc(s.visual)}<div class="sh-sub">${esc(s.camera)} · ${esc(s.match_strategy)} · ${esc(s.purpose || '')}</div></div>
+        <div class="sh-cell">${esc(audioLabel(s.audio_behavior))}${refs ? '<div class="sh-sub">引用: ' + esc(refs) + '</div>' : ''}</div>
+      </div>`;
+    }).join('')}
+  </div></div>`;
+}
+
+function audioLabel(ab) {
+  const m = { narration_sync:'旁白同步', narration_over:'旁白覆盖', dialogue_sync:'对白同步', dialogue_offscreen:'画外对白', ambient_only:'环境声', sound_lead_in:'声音引入', dramatic_silence:'戏剧静默', ambient_transition:'环境转场' };
+  return m[ab] || ab;
+}
+
+function statusLabel(s) {
+  const m = { needed:'待生成', submitted:'生成中', completed:'已完成', failed:'失败' };
+  return m[s] || s;
+}
+
+/* ── Submit tasks ── */
+async function submitStoryboard(segKey, idx) {
+  if (!currentProject) return;
+  try {
+    await api('/api/tasks/submit-storyboard', { method: 'POST', body: { project_name: currentProject, segment_key: segKey, board_index: idx } });
+    await refreshPipeline();
+  } catch (e) { const d = e.detail || e; alert('提交失败: ' + (typeof d === 'string' ? d : JSON.stringify(d))); }
+}
+
+async function submitVideo(segKey, idx) {
+  if (!currentProject) return;
+  try {
+    await api('/api/tasks/submit-video', { method: 'POST', body: { project_name: currentProject, segment_key: segKey, board_index: idx } });
+    await refreshPipeline();
+  } catch (e) { const d = e.detail || e; alert('提交失败: ' + (typeof d === 'string' ? d : JSON.stringify(d))); }
+}
+
+async function refreshPipeline() {
+  if (!currentProject) return;
+  try {
+    pipelineData = await api(`/api/project/status?project_name=${encodeURIComponent(currentProject)}`);
+    renderSegments();
+    if (currentSegKey) renderBoardDetail();
+  } catch (e) { /* ignore */ }
+}
+
+/* ── Settings ── */
+async function showSettings() {
+  let s;
+  try { s = await api('/api/settings'); } catch { s = {}; }
+  const root = document.getElementById('modal-root');
+  root.style.display = 'flex';
+  root.innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal">
+        <h2>API 设置</h2>
+        <label>Vidu API Key</label><input id="s-vidu" value="${esc(s.vidu_api_key || '')}">
+        <label>Wetoken API Key</label><input id="s-wetoken" value="${esc(s.wetoken_api_key || '')}">
+        <label>IdeaLAB API Key</label><input id="s-idealab" value="${esc(s.idealab_api_key || '')}">
+        <label>IdeaLAB Base URL</label><input id="s-base" value="${esc(s.idealab_base_url || '')}">
+        <label>LLM Provider</label>
+        <select id="s-provider" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r2)">
+          <option value="idealab" ${s.llm_provider==='idealab'?'selected':''}>IdeaLAB (Claude)</option>
+          <option value="deepseek" ${s.llm_provider==='deepseek'?'selected':''}>DeepSeek</option>
+        </select>
+        <label>DeepSeek API Key</label><input id="s-ds" value="${esc(s.deepseek_api_key || '')}">
+        <label>DeepSeek Base URL</label><input id="s-ds-base" value="${esc(s.deepseek_base_url || '')}">
+        <label>DeepSeek Model</label><input id="s-ds-model" value="${esc(s.deepseek_model || '')}">
+        <div class="modal-acts">
+          <button class="btn" onclick="closeModal()">取消</button>
+          <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeModal() { document.getElementById('modal-root').style.display = 'none'; }
+
+async function saveSettings() {
+  const body = {
+    vidu_api_key: document.getElementById('s-vidu').value,
+    wetoken_api_key: document.getElementById('s-wetoken').value,
+    idealab_api_key: document.getElementById('s-idealab').value,
+    idealab_base_url: document.getElementById('s-base').value,
+    llm_provider: document.getElementById('s-provider').value,
+    deepseek_api_key: document.getElementById('s-ds').value,
+    deepseek_base_url: document.getElementById('s-ds-base').value,
+    deepseek_model: document.getElementById('s-ds-model').value,
+  };
+  try {
+    await api('/api/settings', { method: 'PUT', body });
+    closeModal();
+    await checkLLMConfig();
+  } catch (e) { alert('保存失败: ' + (e.detail || e)); }
+}
+
+init();
+</script>
+</body>
+</html>
