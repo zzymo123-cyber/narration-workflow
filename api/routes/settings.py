@@ -7,6 +7,13 @@ from typing import Optional
 router = APIRouter()
 
 SETTINGS_PATH = Path(__file__).parent.parent.parent / "settings.json"
+SECRET_FIELDS = {
+    "vidu_api_key",
+    "wetoken_api_key",
+    "idealab_api_key",
+    "deepseek_api_key",
+    "gh_token",
+}
 
 DEFAULTS = {
     "vidu_api_key": "",
@@ -62,7 +69,7 @@ def get_api_key(key_name: str) -> str:
     }
     settings = read_settings()
     val = settings.get(mapping.get(key_name, ""), "")
-    if val:
+    if val and not is_masked_secret(val):
         return val
     return os.environ.get(key_name, "")
 
@@ -83,11 +90,16 @@ async def get_settings():
         "gh_token": _mask(s.get("gh_token", "")),
         "gh_owner": s.get("gh_owner", ""),
         "gh_repo": s.get("gh_repo", ""),
-        "_has_vidu": bool(s["vidu_api_key"]),
-        "_has_wetoken": bool(s["wetoken_api_key"]),
-        "_has_idealab": bool(s["idealab_api_key"]),
-        "_has_deepseek": bool(s.get("deepseek_api_key", "")),
-        "_has_gh": bool(s.get("gh_token", "")),
+        "_has_vidu": _has_secret(s["vidu_api_key"]),
+        "_has_wetoken": _has_secret(s["wetoken_api_key"]),
+        "_has_idealab": _has_secret(s["idealab_api_key"]),
+        "_has_deepseek": _has_secret(s.get("deepseek_api_key", "")),
+        "_has_gh": _has_secret(s.get("gh_token", "")),
+        "_masked_vidu": is_masked_secret(s["vidu_api_key"]),
+        "_masked_wetoken": is_masked_secret(s["wetoken_api_key"]),
+        "_masked_idealab": is_masked_secret(s["idealab_api_key"]),
+        "_masked_deepseek": is_masked_secret(s.get("deepseek_api_key", "")),
+        "_masked_gh": is_masked_secret(s.get("gh_token", "")),
     }
 
 
@@ -96,6 +108,8 @@ async def update_settings(req: SettingsModel):
     current = read_settings()
     for k, v in req.model_dump().items():
         if v is not None:
+            if k in SECRET_FIELDS and _is_masked_value(v, current.get(k, "")):
+                continue
             current[k] = v
     try:
         write_settings(current)
@@ -109,3 +123,17 @@ def _mask(val: str) -> str:
     if len(val) <= 4:
         return val
     return "*" * (len(val) - 4) + val[-4:]
+
+
+def _is_masked_value(value: str, current: str) -> bool:
+    if not value or not current:
+        return False
+    return "*" in value and value.endswith(current[-4:])
+
+
+def is_masked_secret(value: str) -> bool:
+    return bool(value and "*" in value)
+
+
+def _has_secret(value: str) -> bool:
+    return bool(value and not is_masked_secret(value))

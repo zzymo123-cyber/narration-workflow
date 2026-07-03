@@ -49,9 +49,9 @@ def _img_to_data_uri(path: str) -> str:
     """Encode local reference images compactly for Vidu request payloads."""
     with Image.open(path) as img:
         img = ImageOps.exif_transpose(img).convert("RGB")
-        img.thumbnail((1280, 1280), Image.LANCZOS)
+        img.thumbnail((512, 512), Image.LANCZOS)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85, optimize=True)
+        img.save(buf, format="JPEG", quality=80, optimize=True)
     b64 = base64.b64encode(buf.getvalue()).decode()
     return f"data:image/jpeg;base64,{b64}"
 
@@ -210,7 +210,7 @@ async def poll_task_async(api_key: str, task_id: str) -> dict:
 async def download_image_async(url: str, dest_path: Path) -> None:
     """异步下载图片到本地"""
     client = await _get_async_client()
-    resp = await client.get(url, follow_redirects=True, timeout=120)
+    resp = await _async_request_with_retries(client, "GET", url, attempts=2, follow_redirects=True, timeout=45)
     resp.raise_for_status()
     dest_path = Path(dest_path)
     dest_path.parent.mkdir(parents=True, exist_ok=True)

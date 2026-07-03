@@ -1,0 +1,102 @@
+[
+  {
+    "id": "slow_push_in",
+    "name": "慢推近",
+    "type": "运镜",
+    "recommended_duration": "2-5s",
+    "image_prompt_hint": "主体明确，构图稳定，背景清楚，适合作为从中景推进到近景的关键帧。",
+    "image_visual_template": "{visual}，{subject}位于稳定构图中心，背景关系清楚，保留从中景推向近景的空间层次。",
+    "video_prompt_template": "时长{duration}。镜头缓慢推近{subject}，从中景逐渐靠近到近景，主体保持稳定，场景和服装不变。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；镜头缓慢推向{subject}，从中景收到近景，主体稳定，环境和服装保持连续。"
+  },
+  {
+    "id": "dolly_zoom",
+    "name": "希区柯克变焦",
+    "type": "运镜+焦距",
+    "recommended_duration": "2-4s",
+    "image_prompt_hint": "狭长空间纵深明显，背景产生压迫感，主体站在画面中央，表情僵住。",
+    "image_visual_template": "{visual}，{subject}压在狭长空间中央，背景纵深明显拉开，画面带出压迫感。",
+    "video_prompt_template": "时长{duration}。使用希区柯克变焦。{subject}站在原地，镜头后退同时焦距推近，主体大小基本不变，背景纵深被拉长。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；{subject}保持在画面中央，镜头后退同时焦距推近，主体大小基本不变，背景纵深被拉长。"
+  },
+  {
+    "id": "crash_zoom",
+    "name": "快速拉近",
+    "type": "焦距",
+    "recommended_duration": "0.5-1s",
+    "image_prompt_hint": "关键表情或物件处于画面视觉中心，主体清晰突出。",
+    "image_visual_template": "{visual}，{target}压在画面视觉中心，形成清晰的特写焦点。",
+    "video_prompt_template": "时长{duration}。镜头快速拉近到{target}，突出关键表情或物件，拉近后短暂停住。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；镜头快速压向{target}特写，短暂停住，压住观众注意力。"
+  },
+  {
+    "id": "rack_focus",
+    "name": "拉焦",
+    "type": "焦点",
+    "recommended_duration": "1-2s",
+    "image_prompt_hint": "前景和背景形成明显层次，其中一个主体清晰，另一个主体虚化。",
+    "image_visual_template": "{visual}，前景的{foreground}和后景的{background}形成清晰层次，一个清晰一个虚化，焦点关系明确。",
+    "video_prompt_template": "时长{duration}。焦点从{foreground}平滑转移到{background}，用焦点变化突出新的信息。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；焦点从{foreground}平滑转移到{background}，用焦点变化把新的信息带出来。"
+  },
+  {
+    "id": "slow_motion",
+    "name": "慢动作",
+    "type": "时间效果",
+    "recommended_duration": "1.5-4s",
+    "image_prompt_hint": "捕捉动作的关键瞬间，衣角、头发、雨滴、灰尘或碎片具有悬停感。",
+    "image_visual_template": "{visual}，画面停在{action}的关键瞬间，衣角、发丝、灰尘或细小物体带有悬停感。",
+    "video_prompt_template": "时长{duration}。{subject}的{action}以慢动作呈现，动作被拉长，细节缓慢运动。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；{subject}的{action}被放慢，动作细节被拉长，细小运动清晰可见。"
+  },
+  {
+    "id": "handheld_follow",
+    "name": "手持跟拍",
+    "type": "运镜",
+    "recommended_duration": "3-6s",
+    "image_prompt_hint": "跟随视角，主体处在画面前方或侧前方，画面有现场感和轻微不稳定感。",
+    "image_visual_template": "{visual}，画面贴近{subject}的移动方向，主体处在前方或侧前方，构图带轻微现场晃动感。",
+    "video_prompt_template": "时长{duration}。手持镜头跟随{subject}移动，轻微晃动，保持现场感，不要丢失主体。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；手持镜头贴着{subject}移动，保持轻微晃动和现场感，全程不要丢失主体。"
+  },
+  {
+    "id": "orbit_360",
+    "name": "环绕镜头",
+    "type": "运镜",
+    "recommended_duration": "2-5s",
+    "image_prompt_hint": "主体位于画面中心，周围环境清晰，适合镜头围绕主体运动。",
+    "image_visual_template": "{visual}，{subject}位于画面中心，周围环境完整展开，保留可环绕观察的空间关系。",
+    "video_prompt_template": "时长{duration}。镜头围绕{subject}缓慢环绕，主体保持稳定，背景随镜头转动。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；镜头围绕{subject}缓慢环绕，主体保持稳定，背景随镜头转动显出空间变化。"
+  },
+  {
+    "id": "pov_shot",
+    "name": "主观镜头",
+    "type": "视角",
+    "recommended_duration": "2-5s",
+    "image_prompt_hint": "第一人称视角，画面可带手部、门框、墙边或遮挡物边缘，像角色亲眼看到的画面。",
+    "image_visual_template": "{visual}，画面保持第一人称观察感，可带手部、门框、墙边或遮挡物边缘，像{subject}亲眼看到{target}。",
+    "video_prompt_template": "时长{duration}。使用第一人称主观视角，镜头像{subject}的眼睛一样观察{target}。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；镜头保持{subject}的第一人称观察感，像亲眼观察{target}，带轻微呼吸式视线移动。"
+  },
+  {
+    "id": "dutch_angle",
+    "name": "荷兰角",
+    "type": "构图",
+    "recommended_duration": "1-3s",
+    "image_prompt_hint": "画面明显倾斜构图，空间失衡，主体处在不稳定的斜向画面中。",
+    "image_visual_template": "{visual}，画面明显倾斜，{subject}落在失衡的斜向构图里，空间显得不稳定。",
+    "video_prompt_template": "时长{duration}。画面倾斜构图，{subject}处在失衡的画面中，空间显得不稳定。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；画面保持倾斜构图，{subject}处在失衡的斜向空间中，制造不安感。"
+  },
+  {
+    "id": "frame_within_frame",
+    "name": "框中框",
+    "type": "构图",
+    "recommended_duration": "1-4s",
+    "image_prompt_hint": "通过门框、窗框、镜框或走廊边缘把主体框在画面内部。",
+    "image_visual_template": "{visual}，通过{frame_object}把{subject}框在画面内部，形成被观察或被困住的构图。",
+    "video_prompt_template": "时长{duration}。通过{frame_object}把{subject}框在画面内部，形成被观察或被困住的构图。",
+    "video_line_template": "{start}-{end}秒：{camera}，{visual}；镜头隔着{frame_object}观察{subject}，把主体框在画面内部，形成被困住或被窥视的感觉。"
+  }
+]

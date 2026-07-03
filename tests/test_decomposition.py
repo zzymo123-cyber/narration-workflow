@@ -22,6 +22,22 @@ def test_build_step2_prompt_contains_key_elements():
     assert "林雪" in prompt  # assets injected
 
 
+def test_build_step2_prompt_includes_fixed_script_plan():
+    assets = {"characters": {"林雪": {"seed": "年轻女性"}}, "scenes": {}, "props": {}}
+    script_plan = {
+        "board_plan": [
+            {"board_id": "b0001", "duration": 13, "voice_beat_ids": ["v0001"], "source_slice_ids": ["s0001"]},
+            {"board_id": "b0002", "duration": 9, "voice_beat_ids": ["v0002"], "source_slice_ids": ["s0002"]},
+        ],
+    }
+
+    prompt = build_step2_prompt("third_person", assets, script_plan=script_plan)
+
+    assert "fixed_total_boards" in prompt
+    assert "b0001" in prompt
+    assert '"fixed_total_boards": 2' in prompt
+
+
 def test_build_step3_prompt_contains_key_elements():
     assets = {"characters": {"林雪": {"seed": "年轻女性"}}, "scenes": {"雨夜小巷": {"seed": "昏暗"}}, "props": {}}
     prompt = build_step3_prompt("third_person", "seg_1_1", "雨夜小巷", ["林雪"], 2, assets)

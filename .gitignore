@@ -1,9 +1,12 @@
 __pycache__/
 .venv/
+.DS_Store
+.playwright-cli/
 *.pyc
 *.pyo
 .env
 # 调试临时文件
+debug/
 _*.txt
 _*.py
 settings.json

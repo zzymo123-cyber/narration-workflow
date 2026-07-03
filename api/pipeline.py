@@ -16,7 +16,7 @@ def read_pipeline(project_dir: Path) -> dict:
 def write_pipeline(project_dir: Path, data: dict) -> None:
     """Atomic write: write .tmp then rename"""
     path = _pipeline_path(project_dir)
-    tmp = path.with_suffix(".tmp")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{id(data)}.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)

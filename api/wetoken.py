@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import ssl
 import time
 import httpx
 from pathlib import Path
@@ -20,6 +21,27 @@ class WetokenError(Exception):
     pass
 
 
+_TRANSIENT_EXCEPTIONS = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+    TimeoutError,
+    ssl.SSLError,
+)
+
+
+def _http_with_retries(fn, *args, attempts: int = 3, **kwargs):
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return fn(*args, **kwargs)
+        except _TRANSIENT_EXCEPTIONS as e:
+            last_error = e
+            if attempt < attempts - 1:
+                time.sleep(1.5 * (attempt + 1))
+    raise WetokenError(f"网络连接超时，已重试 {attempts} 次仍失败: {last_error}")
+
+
 def _headers(api_key: str) -> dict:
     return {
         "Content-Type": "application/json",
@@ -31,8 +53,20 @@ def _image_to_data_uri(path: str) -> str:
     p = Path(path)
     suffix = p.suffix.lower().lstrip(".")
     mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}.get(suffix, "image/png")
-    with open(p, "rb") as f:
-        b64 = base64.b64encode(f.read()).decode()
+    if Image is not None:
+        try:
+            img = Image.open(p).convert("RGB")
+            img.thumbnail((768, 768), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=78, optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode()
+            mime = "image/jpeg"
+        except Exception:
+            with open(p, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+    else:
+        with open(p, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
     return f"data:{mime};base64,{b64}"
 
 
@@ -48,45 +82,64 @@ def _get_gh_config() -> tuple[str, str, str]:
         return "", "", ""
 
 
-def _push_to_github(local_path: str, filename: str) -> str:
-    """推图片到 GitHub 仓库，返回 raw.githubusercontent.com 公网 URL"""
+def _github_raw_url(filename: str, gh_owner: str, gh_repo: str, branch: str) -> str:
+    return f"https://raw.githubusercontent.com/{gh_owner}/{gh_repo}/{branch}/{filename}"
+
+
+def _put_github_file(content_b64: str, filename: str) -> str:
     gh_token, gh_owner, gh_repo = _get_gh_config()
     if not gh_token or not gh_owner or not gh_repo:
         raise WetokenError("缺少 GitHub 配置（gh_token/gh_owner/gh_repo），无法上传素材")
 
+    headers = {
+        "Authorization": f"token {gh_token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+    repo_api = f"https://api.github.com/repos/{gh_owner}/{gh_repo}"
+    repo_resp = _http_with_retries(httpx.get, repo_api, headers=headers, timeout=30, trust_env=False)
+    repo_resp.raise_for_status()
+    branch = repo_resp.json().get("default_branch") or "main"
+    api_url = f"{repo_api}/contents/{filename}"
+
+    body = {"message": f"upload {filename}", "content": content_b64}
+    r = _http_with_retries(httpx.get, api_url, headers=headers, timeout=30, trust_env=False)
+    if r.status_code == 200:
+        body["sha"] = r.json()["sha"]
+
+    resp = _http_with_retries(httpx.put, api_url, headers=headers, json=body, timeout=30, trust_env=False)
+    resp.raise_for_status()
+    return _github_raw_url(filename, gh_owner, gh_repo, branch)
+
+
+def _push_to_github(local_path: str, filename: str) -> str:
+    """推图片到 GitHub 仓库，返回 raw.githubusercontent.com 公网 URL"""
     img = Image.open(local_path).convert("RGB")
     w, h = img.size
     nw, nh = 1024, int(h * 1024 / w)
     buf = io.BytesIO()
     img.resize((nw, nh), Image.LANCZOS).save(buf, "JPEG", quality=88)
     content_b64 = base64.b64encode(buf.getvalue()).decode()
+    return _put_github_file(content_b64, filename)
 
-    headers = {
-        "Authorization": f"token {gh_token}",
-        "Accept": "application/vnd.github.v3+json",
-    }
-    api_url = f"https://api.github.com/repos/{gh_owner}/{gh_repo}/contents/{filename}"
 
-    body = {"message": f"upload {filename}", "content": content_b64}
-    r = httpx.get(api_url, headers=headers)
-    if r.status_code == 200:
-        body["sha"] = r.json()["sha"]
-
-    resp = httpx.put(api_url, headers=headers, json=body, timeout=30)
-    resp.raise_for_status()
-    return f"https://raw.githubusercontent.com/{gh_owner}/{gh_repo}/main/{filename}"
+def _push_file_to_github(local_path: str, filename: str) -> str:
+    with open(local_path, "rb") as f:
+        content_b64 = base64.b64encode(f.read()).decode()
+    return _put_github_file(content_b64, filename)
 
 
 # ── Wetoken 素材上传 ──
 
-def upload_asset(api_key: str, public_url: str, name: str) -> str:
-    """上传图片到 Wetoken 素材 API，返回 asset_id"""
-    resp = httpx.post(
+def upload_asset(api_key: str, public_url: str, name: str, asset_type: str = "Image") -> str:
+    """上传素材到 Wetoken 素材 API，返回 asset_id"""
+    resp = _http_with_retries(
+        httpx.post,
         f"{ASSET_URL}/createMedia",
         headers=_headers(api_key),
-        json={"url": public_url, "name": name, "assetType": "Image",
+        json={"url": public_url, "name": name, "assetType": asset_type,
               "moderation": {"Strategy": "Skip"}},
         timeout=30,
+        trust_env=False,
     )
     resp.raise_for_status()
     data = resp.json()
@@ -99,11 +152,13 @@ def poll_asset_status(api_key: str, asset_id: str, timeout: int = 180) -> str:
     last_error = ""
     while time.time() < deadline:
         try:
-            resp = httpx.get(
+            resp = _http_with_retries(
+                httpx.get,
                 f"{ASSET_URL}/get",
                 headers=_headers(api_key),
                 params={"id": asset_id},
                 timeout=30,
+                trust_env=False,
             )
             resp.raise_for_status()
             result = resp.json()["Result"]
@@ -137,15 +192,27 @@ def _save_ledger(project_dir: Path, ledger: dict) -> None:
     path.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _get_cached_asset_uri(ledger: dict, local_path: str) -> str | None:
+def _get_cached_asset_uri(ledger: dict, local_path: str, asset_type: str | None = None) -> str | None:
     """从账本查找已上传素材的 asset:// URI"""
     for info in ledger.get("assets", {}).values():
         if info.get("source_path") == local_path and info.get("status") == "Active":
+            if asset_type and info.get("type") != asset_type:
+                continue
+            path = Path(local_path)
+            if path.exists():
+                stat = path.stat()
+                cached_mtime = info.get("source_mtime")
+                cached_size = info.get("source_size")
+                if cached_mtime is None or cached_size is None:
+                    return None
+                if cached_mtime != stat.st_mtime or cached_size != stat.st_size:
+                    return None
             return info.get("asset_uri")
     return None
 
 
-def _cache_asset(project_dir: Path, asset_id: str, asset_uri: str, public_url: str, local_path: str, name: str):
+def _cache_asset(project_dir: Path, asset_id: str, asset_uri: str, public_url: str,
+                 local_path: str, name: str, asset_type: str):
     """记录素材到账本"""
     ledger = _load_ledger(project_dir)
     import datetime
@@ -154,8 +221,10 @@ def _cache_asset(project_dir: Path, asset_id: str, asset_uri: str, public_url: s
         "asset_uri": asset_uri,
         "source_url": public_url,
         "source_path": local_path,
+        "source_mtime": Path(local_path).stat().st_mtime if Path(local_path).exists() else None,
+        "source_size": Path(local_path).stat().st_size if Path(local_path).exists() else None,
         "name": name,
-        "type": "Image",
+        "type": asset_type,
         "status": "Active",
         "uploaded_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
@@ -169,7 +238,7 @@ def upload_local_image(api_key: str, local_path: str, name: str, project_dir: Pa
     """
     # 查缓存
     ledger = _load_ledger(project_dir)
-    cached = _get_cached_asset_uri(ledger, local_path)
+    cached = _get_cached_asset_uri(ledger, local_path, "Image")
     if cached:
         return cached
 
@@ -191,14 +260,31 @@ def upload_local_image(api_key: str, local_path: str, name: str, project_dir: Pa
     public_url = _push_to_github(local_path, filename)
 
     # 上传到 Wetoken 素材 API
-    asset_id = upload_asset(api_key, public_url, name)
+    asset_id = upload_asset(api_key, public_url, name, "Image")
 
     # 等待就绪
     poll_asset_status(api_key, asset_id)
 
     # 缓存
     asset_uri = f"asset://{asset_id}"
-    _cache_asset(project_dir, asset_id, asset_uri, public_url, local_path, name)
+    _cache_asset(project_dir, asset_id, asset_uri, public_url, local_path, name, "Image")
+    return asset_uri
+
+
+def upload_local_audio(api_key: str, local_path: str, name: str, project_dir: Path) -> str:
+    """上传本地音频到 Wetoken 素材平台，返回 asset:// URI。"""
+    ledger = _load_ledger(project_dir)
+    cached = _get_cached_asset_uri(ledger, local_path, "Audio")
+    if cached:
+        return cached
+
+    suffix = Path(local_path).suffix.lower() or ".mp3"
+    filename = f"audio_{name.replace(' ', '_').replace('/', '_')}{suffix}"
+    public_url = _push_file_to_github(local_path, filename)
+    asset_id = upload_asset(api_key, public_url, name, "Audio")
+    poll_asset_status(api_key, asset_id)
+    asset_uri = f"asset://{asset_id}"
+    _cache_asset(project_dir, asset_id, asset_uri, public_url, local_path, name, "Audio")
     return asset_uri
 
 
@@ -208,6 +294,7 @@ def submit_video_task(
     api_key: str,
     prompt: str,
     image_paths: list[str],
+    audio_paths: list[str] | None = None,
     duration: int = 10,
     ratio: str = "16:9",
     resolution: str = "720p",
@@ -219,17 +306,31 @@ def submit_video_task(
     提交视频生成任务（多参考图模式）。
     所有图片统一作为 reference_image，不使用 first_frame（API 不允许混用）。
     """
+    duration = max(4, min(15, int(duration or 10)))
     content = [{"type": "text", "text": prompt}]
+    gh_token, gh_owner, gh_repo = _get_gh_config()
+    can_upload_local = bool(project_dir and gh_token and gh_owner and gh_repo)
 
     for img_path in image_paths:
-        if project_dir and Path(img_path).exists():
+        if img_path.startswith("http://") or img_path.startswith("https://"):
+            content.append({"type": "image_url", "image_url": {"url": img_path}, "role": "reference_image"})
+        elif can_upload_local and Path(img_path).exists():
             name = Path(img_path).stem
-            asset_uri = upload_local_image(api_key, img_path, name, project_dir)
-            content.append({"type": "image_url", "image_url": {"url": asset_uri}, "role": "reference_image"})
+            image_url = upload_local_image(api_key, img_path, name, project_dir)
+            content.append({"type": "image_url", "image_url": {"url": image_url}, "role": "reference_image"})
         else:
             data_uri = _image_to_data_uri(img_path) if Path(img_path).exists() else None
             if data_uri:
                 content.append({"type": "image_url", "image_url": {"url": data_uri}, "role": "reference_image"})
+
+    for audio_path in audio_paths or []:
+        if audio_path.startswith("asset://") or audio_path.startswith("http://") or audio_path.startswith("https://"):
+            audio_url = audio_path
+        elif can_upload_local and Path(audio_path).exists():
+            audio_url = upload_local_audio(api_key, audio_path, Path(audio_path).stem, project_dir)
+        else:
+            raise WetokenError("音频参考需要先配置 GitHub，并上传到 Wetoken 素材库")
+        content.append({"type": "audio_url", "audio_url": {"url": audio_url}, "role": "reference_audio"})
 
     body = {
         "model": MODEL,
@@ -240,7 +341,7 @@ def submit_video_task(
         "generate_audio": generate_audio,
         "watermark": watermark,
     }
-    resp = httpx.post(BASE_URL, headers=_headers(api_key), json=body, timeout=60)
+    resp = _http_with_retries(httpx.post, BASE_URL, headers=_headers(api_key), json=body, timeout=60, trust_env=False)
     if not resp.is_success:
         try:
             err_detail = resp.json()
@@ -258,7 +359,7 @@ def poll_task(api_key: str, task_id: str) -> dict:
     查询视频任务状态。
     返回: {"status": "pending"|"completed"|"failed", "video_url": str|None, "error": str|None}
     """
-    resp = httpx.get(f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15)
+    resp = _http_with_retries(httpx.get, f"{BASE_URL}/{task_id}", headers=_headers(api_key), timeout=15, trust_env=False)
     resp.raise_for_status()
     data = resp.json()
     status = data.get("status", "")
@@ -274,7 +375,7 @@ def poll_task(api_key: str, task_id: str) -> dict:
 
 
 def download_video(url: str, dest_path: Path) -> None:
-    resp = httpx.get(url, timeout=120, follow_redirects=True)
+    resp = _http_with_retries(httpx.get, url, timeout=120, follow_redirects=True, trust_env=False)
     resp.raise_for_status()
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     with open(dest_path, "wb") as f:
@@ -332,6 +433,7 @@ async def submit_video_task_async(
     api_key: str,
     prompt: str,
     image_paths: list[str],
+    audio_paths: list[str] | None = None,
     duration: int = 10,
     ratio: str = "16:9",
     resolution: str = "720p",
@@ -342,6 +444,6 @@ async def submit_video_task_async(
     """异步提交视频生成任务（用 to_thread 包装同步上传链路）"""
     import asyncio
     return await asyncio.to_thread(
-        submit_video_task, api_key, prompt, image_paths,
+        submit_video_task, api_key, prompt, image_paths, audio_paths,
         duration, ratio, resolution, generate_audio, watermark, project_dir,
     )

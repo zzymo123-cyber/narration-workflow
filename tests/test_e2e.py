@@ -170,15 +170,22 @@ def test_e2e_prompt_assembly():
         storyboard_image_path="/boards/seg_01_01_p01.png"
     )
     assert "表现雨夜相遇的悬念氛围" in video_prompt
-    assert "旁白：她走在小巷里。" in video_prompt
-    assert "阿明：你怎么来了？" in video_prompt
-    assert "画外响起" in video_prompt  # dialogue_offscreen -> natural language
-    assert "角色设定板 林雪" in video_prompt
+    assert "真人实拍电影短片" in video_prompt
+    assert "“她走在小巷里。”" in video_prompt
+    assert "“你怎么来了？”" in video_prompt
+    assert "说明：阿明画外对白" in video_prompt
+    assert "画外对白" in video_prompt
+    assert "角色参考图：林雪" in video_prompt
     assert "分镜板参考图" in video_prompt
+    assert "约束" in video_prompt
+    assert "运动设计" not in video_prompt
+    assert "旁白A（0-2秒）" in video_prompt
+    assert "“她走在小巷里。”" in video_prompt
+    assert "声音为旁白A" in video_prompt
     assert "不要生成字幕" in video_prompt
     assert "不要生成 BGM" in video_prompt
     # Missing asset URLs should not appear
-    assert "角色设定板 阿明" not in video_prompt
+    assert "角色参考图：阿明" not in video_prompt
 
 
 def test_e2e_duration_calculation():

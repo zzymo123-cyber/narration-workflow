@@ -1,12 +1,15 @@
 VALID_AUDIO_BEHAVIORS = {
     "narration_sync", "narration_over", "dialogue_sync", "dialogue_offscreen",
-    "ambient_only", "sound_lead_in", "dramatic_silence", "ambient_transition",
+    "phone_dialogue", "ambient_only", "sound_lead_in", "dramatic_silence", "ambient_transition",
 }
 
 VALID_MATCH_STRATEGIES = {
     "sync", "supplement", "contrast", "foreshadow", "reaction_first",
     "reveal", "emotional_landing", "transition",
 }
+
+VALID_VOICE_TYPES = {"narration", "dialogue"}
+GENERIC_DIALOGUE_SPEAKERS = {"角色", "电话那头", "恐惧语气", "前所未有", "朋友", "他", "她"}
 
 REQUIRED_SHOT_FIELDS = {
     "shot_id", "start", "end", "duration", "voice_refs", "visual",
@@ -15,14 +18,42 @@ REQUIRED_SHOT_FIELDS = {
 }
 
 
+def _required_voice_duration(beat: dict) -> int:
+    from api.duration import dialogue_duration, narration_duration
+
+    if beat.get("type") == "dialogue":
+        return dialogue_duration(beat.get("text", ""))
+    return narration_duration(beat.get("text", ""))
+
+
 def validate_board_page(page: dict) -> list[str]:
     errors = []
 
     # Integer seconds
     for i, beat in enumerate(page.get("voice_timeline", [])):
+        beat_type = beat.get("type") or "narration"
+        if beat_type not in VALID_VOICE_TYPES:
+            errors.append(f"voice_timeline[{i}].type '{beat_type}' is not valid")
+        if not str(beat.get("text") or "").strip():
+            errors.append(f"voice_timeline[{i}].text must not be empty")
+        speaker = str(beat.get("speaker") or "").strip()
+        if beat_type == "dialogue":
+            if not speaker or speaker in GENERIC_DIALOGUE_SPEAKERS or "语气" in speaker:
+                errors.append(f"voice_timeline[{i}].speaker must be a concrete character name, got {speaker or None}")
+        elif beat_type == "narration" and not speaker:
+            errors.append(f"voice_timeline[{i}].speaker must not be empty")
         for field in ("start", "end", "duration"):
             if not isinstance(beat.get(field), int):
                 errors.append(f"voice_timeline[{i}].{field} must be integer, got {beat.get(field)}")
+        if all(isinstance(beat.get(field), int) for field in ("start", "end", "duration")):
+            if beat["duration"] != beat["end"] - beat["start"]:
+                errors.append(f"voice_timeline[{i}].duration {beat['duration']} != end-start {beat['end']-beat['start']}")
+            required = _required_voice_duration(beat)
+            if beat["duration"] < required:
+                errors.append(
+                    f"voice_timeline[{i}] duration {beat['duration']}s is too short for text; "
+                    f"requires at least {required}s"
+                )
     for i, shot in enumerate(page.get("shot_timeline", [])):
         for field in ("start", "end", "duration"):
             if not isinstance(shot.get(field), int):

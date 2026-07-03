@@ -1,0 +1,34 @@
+[
+  {
+    "id": "suspense_cold_blue",
+    "name": "悬疑冷青灰",
+    "use_for": ["悬疑", "犯罪", "惊悚", "心理", "夜戏", "密闭空间"],
+    "hex": ["#0F141B", "#1D2631", "#2E3A46", "#5A6775", "#8693A1", "#B7C2CC"],
+    "prompt_suffix": "整体色调为冷青灰，低饱和，高反差，阴影偏蓝，氛围压抑克制。",
+    "reference_image_name": "suspense_cold_blue_palette.png"
+  },
+  {
+    "id": "family_warm_gray",
+    "name": "家庭暖灰",
+    "use_for": ["世情", "家庭", "日常", "情感", "生活流", "对白场景"],
+    "hex": ["#2A2520", "#4A4138", "#6E6257", "#93887C", "#B8AEA3", "#DDD5CD"],
+    "prompt_suffix": "整体色调为暖灰米棕，低到中饱和，光线柔和，明暗对比不过强，生活化、克制、真实。",
+    "reference_image_name": "family_warm_gray_palette.png"
+  },
+  {
+    "id": "hospital_cold_white",
+    "name": "医院冷白",
+    "use_for": ["医院", "办公室", "现代都市", "写实室内", "理性冷感场景"],
+    "hex": ["#1B2128", "#36414B", "#5B6874", "#8894A0", "#B7C2CB", "#E3E9EE"],
+    "prompt_suffix": "整体色调为冷白灰蓝，荧光灯感，低到中饱和，干净、克制、偏疏离，亮部偏冷白。",
+    "reference_image_name": "hospital_cold_white_palette.png"
+  },
+  {
+    "id": "domestic_brown_gray",
+    "name": "家庭压抑棕灰",
+    "use_for": ["压抑世情", "饭桌冲突", "旧屋", "家庭矛盾", "中年困境", "沉闷关系戏"],
+    "hex": ["#241E1A", "#40362F", "#5C4F46", "#7A6D62", "#A09387", "#CBBFB2"],
+    "prompt_suffix": "整体色调为棕灰暗黄，低饱和，低亮度，中高反差，空气感沉闷，情绪压抑，带旧旧的生活磨损感。",
+    "reference_image_name": "domestic_brown_gray_palette.png"
+  }
+]

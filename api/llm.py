@@ -19,6 +19,17 @@ def _read_settings() -> dict:
         return {}
 
 
+def _clean_secret(value: str) -> str:
+    try:
+        from api.routes.settings import is_masked_secret
+        if is_masked_secret(value):
+            return ""
+    except Exception:
+        if value and "*" in value:
+            return ""
+    return value or ""
+
+
 def _get_llm_provider() -> str:
     provider = os.environ.get("LLM_PROVIDER", "")
     if not provider:
@@ -35,11 +46,11 @@ def get_llm_config() -> dict:
     settings = _read_settings()
 
     if provider == "deepseek":
-        api_key = os.environ.get("DEEPSEEK_API_KEY") or settings.get("deepseek_api_key", "")
+        api_key = os.environ.get("DEEPSEEK_API_KEY") or _clean_secret(settings.get("deepseek_api_key", ""))
         base_url = os.environ.get("DEEPSEEK_BASE_URL") or settings.get("deepseek_base_url", "") or DEFAULT_DEEPSEEK_BASE_URL
         model = os.environ.get("DEEPSEEK_MODEL") or settings.get("deepseek_model", "") or DEFAULT_DEEPSEEK_MODEL
     else:
-        api_key = os.environ.get("IDEALAB_API_KEY") or settings.get("idealab_api_key", "")
+        api_key = os.environ.get("IDEALAB_API_KEY") or _clean_secret(settings.get("idealab_api_key", ""))
         base_url = os.environ.get("IDEALAB_BASE_URL") or settings.get("idealab_base_url", "") or DEFAULT_BASE_URL
         model = DEFAULT_MODEL
 
@@ -65,8 +76,8 @@ def _get_deepseek_config(fallback_api_key: str = "") -> tuple[str, str, str]:
     settings = _read_settings()
     api_key = (
         os.environ.get("DEEPSEEK_API_KEY")
-        or settings.get("deepseek_api_key", "")
-        or fallback_api_key
+        or _clean_secret(settings.get("deepseek_api_key", ""))
+        or _clean_secret(fallback_api_key)
     )
     base_url = (
         os.environ.get("DEEPSEEK_BASE_URL")
@@ -83,7 +94,7 @@ def _get_deepseek_config(fallback_api_key: str = "") -> tuple[str, str, str]:
 
 def _get_deepseek_client(api_key: str, base_url: str):
     from openai import OpenAI
-    return OpenAI(api_key=api_key, base_url=base_url)
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=90)
 
 
 def _generate_deepseek_prompt(api_key: str, system: str, user_message: str, model: str | None = None) -> str:
@@ -187,8 +198,8 @@ def _resolve_api_key() -> str:
     provider = _get_llm_provider()
     settings = _read_settings()
     if provider == "deepseek":
-        return os.environ.get("DEEPSEEK_API_KEY") or settings.get("deepseek_api_key", "")
-    return os.environ.get("IDEALAB_API_KEY") or settings.get("idealab_api_key", "")
+        return os.environ.get("DEEPSEEK_API_KEY") or _clean_secret(settings.get("deepseek_api_key", ""))
+    return os.environ.get("IDEALAB_API_KEY") or _clean_secret(settings.get("idealab_api_key", ""))
 
 
 def test_llm_connection() -> dict:
@@ -205,7 +216,7 @@ def test_llm_connection() -> dict:
         }
 
     try:
-        generate_prompt(api_key, "Reply with OK", "test")
+        generate_prompt(api_key, 'Return only valid JSON: {"ok": true}', "Return JSON health check.")
         return {"success": True, **config, "error_type": None, "error_message": None}
     except anthropic.AuthenticationError as e:
         return {
